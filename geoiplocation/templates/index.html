@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Location Tracking on Map</title>
+
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    
+    <!-- Leaflet.js JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Location Tracking on Map</h1>
+    <button onclick="startTracking()">Start Tracking Your Location</button>
+    <button onclick="stopTracking()">Stop Tracking</button>
+
+    <!-- 지도 표시용 div -->
+    <div id="map"></div>
+
+    <script>
+        let watchID;
+        let map;
+        let polyline;
+        let latlngs = []; // 사용자의 위치 좌표 배열
+
+        // 지도 초기화
+        function initializeMap() {
+            map = L.map('map').setView([51.505, -0.09], 13); // 초기 지도 위치 (임의의 값)
+
+            // OpenStreetMap 타일 추가
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // 경로를 그릴 폴리라인 초기화
+            polyline = L.polyline(latlngs, {color: 'blue'}).addTo(map);
+        }
+
+        // 위치 추적 시작
+        function startTracking() {
+            initializeMap();
+            if (navigator.geolocation) {
+                watchID = navigator.geolocation.watchPosition(updatePosition, showError, {
+                    enableHighAccuracy: true,
+                    maximumAge: 1000,
+                    timeout: 5000
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        // 위치 추적 종료
+        function stopTracking() {
+            if (watchID) {
+                navigator.geolocation.clearWatch(watchID);
+                alert("Location tracking stopped.");
+            }
+        }
+
+        // 위치 업데이트 함수
+        function updatePosition(position) {
+            let latitude = position.coords.latitude;
+            let longitude = position.coords.longitude;
+
+            // 서버로 위치 정보 전송
+            fetch('/location', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    latitude: latitude,
+                    longitude: longitude
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+
+            // 새 위치를 LatLng로 저장
+            let newLatLng = [latitude, longitude];
+
+            // 지도 중심을 새 위치로 이동
+            map.setView(newLatLng, 13);
+
+            // 새로운 위치를 마커로 표시
+            L.marker(newLatLng).addTo(map);
+
+            // 폴리라인에 새 위치 추가
+            latlngs.push(newLatLng);
+            polyline.setLatLngs(latlngs); // 업데이트된 경로를 지도에 반영
+        }
+
+        // 오류 처리 함수
+        function showError(error) {
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("User denied the request for Geolocation.");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("Location information is unavailable.");
+                    break;
+                case error.TIMEOUT:
+                    alert("The request to get user location timed out.");
+                    break;
+                case error.UNKNOWN_ERROR:
+                    alert("An unknown error occurred.");
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>
